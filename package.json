@@ -1,5 +1,5 @@
 {
-  "version": "0.0.0",
+  "version": "0.1.0",
   "keywords": [],
   "type": "commonjs",
   "exports": {
@@ -55,7 +55,7 @@
     "description": ""
   },
   "name": "export-to-hugo",
-  "description": "",
+  "description": "Export hugo file using strapi v5",
   "license": "MIT",
-  "author": "Your Name <you@example.com>"
+  "author": "HERFOM"
 }
