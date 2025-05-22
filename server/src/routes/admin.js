@@ -9,14 +9,14 @@ module.exports = {
     },
     {
       method: 'POST',
-      path: '/update-website-files',
-      handler: 'controller.updateWebsiteFiles',
+      path: '/hugo-file-generator',
+      handler: 'controller.hugoFileGenerator',
       config: { policies: [] },
     },
     {
       method: 'POST',
-      path: '/sync-to-server',
-      handler: 'controller.syncToServer',
+      path: '/sync-to-github',
+      handler: 'controller.syncToGithub',
       config: { policies: [] },
     },
   ],

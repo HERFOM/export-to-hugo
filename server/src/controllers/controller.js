@@ -286,7 +286,7 @@ const controller = ({ strapi }) => ({
       };
     }
   },
-  async updateWebsiteFiles(ctx) {
+  async hugoFileGenerator(ctx) {
     try {
       const fs = require('fs');
       const path = require('path');
@@ -707,9 +707,232 @@ title: "${item.name}"
       };
     }
   },
-  async syncToServer(ctx) {
-    // 这里写你的业务逻辑
-    ctx.body = { message: '同步到服务器操作成功' };
+  async syncToGithub(ctx) {
+    try {
+      const { execSync, spawn } = require('child_process');
+      const path = require('path');
+      const fs = require('fs');
+
+      // 获取项目根目录（strapi 的上一级目录）
+      const getProjectRoot = () => {
+        let currentDir = __dirname;
+        while (currentDir !== path.parse(currentDir).root) {
+          const parentDir = path.dirname(currentDir);
+          if (fs.existsSync(path.join(parentDir, 'strapi'))) {
+            return parentDir;
+          }
+          currentDir = parentDir;
+        }
+        return __dirname;
+      };
+
+      const projectRoot = getProjectRoot();
+      const strapiDir = path.join(projectRoot, 'strapi');
+      const envPath = path.join(strapiDir, '.env');
+
+      // 检查 .env 文件是否存在
+      if (!fs.existsSync(envPath)) {
+        // 创建 .env 文件
+        const envTemplate = `# GitHub 配置
+# 格式：用户名/仓库名，例如：username/repository
+GITHUB_REPO=your-username/your-repository
+
+# GitHub 分支名称，例如：main 或 master
+GITHUB_BRANCH=main
+
+# GitHub 用户名
+GITHUB_USERNAME=your-github-username
+
+# GitHub 个人访问令牌 (Personal Access Token)
+# 请访问 https://github.com/settings/tokens 创建
+# 需要至少包含 repo 权限
+GITHUB_TOKEN=your-github-token
+
+# 注意：请将上述值替换为您的实际配置
+# 请确保此文件不会被提交到 git 仓库中`;
+
+        fs.writeFileSync(envPath, envTemplate);
+        
+        ctx.body = {
+          success: false,
+          message: '环境配置文件已创建',
+          data: {
+            envPath: path.relative(projectRoot, envPath),
+            nextStep: '请修改 .env 文件中的配置信息，然后重新尝试同步操作'
+          }
+        };
+        return;
+      }
+
+      // 读取环境变量
+      let githubConfig = {};
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      const envLines = envContent.split('\n');
+      
+      for (const line of envLines) {
+        if (line.startsWith('GITHUB_')) {
+          const [key, value] = line.split('=');
+          if (key && value) {
+            githubConfig[key.trim()] = value.trim();
+          }
+        }
+      }
+
+      // 检查必要的环境变量
+      const requiredEnvVars = ['GITHUB_REPO', 'GITHUB_BRANCH', 'GITHUB_USERNAME', 'GITHUB_TOKEN'];
+      const missingVars = requiredEnvVars.filter(varName => !githubConfig[varName]);
+      
+      if (missingVars.length > 0) {
+        ctx.body = {
+          success: false,
+          message: '环境配置不完整',
+          data: {
+            missingVars,
+            nextStep: '请完善 .env 文件中的配置信息，然后重新尝试同步操作'
+          }
+        };
+        return;
+      }
+
+      // 切换到项目根目录
+      process.chdir(projectRoot);
+
+      const results = [];
+      let hasChanges = false;
+      let statusDetails = {};
+      let pushProgress = '';
+
+      try {
+        // 获取当前分支信息
+        const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+        statusDetails.currentBranch = currentBranch;
+
+        // 获取远程仓库信息
+        const remoteUrl = execSync('git remote -v', { encoding: 'utf8' }).trim();
+        statusDetails.remoteUrl = remoteUrl;
+
+        // 获取最近的提交信息
+        const lastCommit = execSync('git log -1 --pretty=format:"%h - %s (%cr)"', { encoding: 'utf8' }).trim();
+        statusDetails.lastCommit = lastCommit;
+
+        // 检查是否有未提交的更改
+        const statusOutput = execSync('git status --porcelain', { encoding: 'utf8' });
+        hasChanges = statusOutput.trim().length > 0;
+        statusDetails.changedFiles = statusOutput.trim().split('\n').filter(Boolean);
+
+        if (hasChanges) {
+          // 如果有更改，执行 add 和 commit
+          const addOutput = execSync('git add .', { encoding: 'utf8' });
+          results.push({
+            command: 'git add .',
+            success: true,
+            output: addOutput.trim()
+          });
+
+          const commitOutput = execSync(`git commit -m "自动同步: ${new Date().toLocaleString()}"`, { encoding: 'utf8' });
+          results.push({
+            command: 'git commit',
+            success: true,
+            output: commitOutput.trim()
+          });
+        } else {
+          results.push({
+            command: 'git status',
+            success: true,
+            output: '没有检测到文件更改，跳过提交步骤'
+          });
+        }
+
+        // 使用 spawn 来执行 git push，以便获取实时进度
+        const pushProcess = spawn('git', [
+          'push',
+          `https://${githubConfig.GITHUB_USERNAME}:${githubConfig.GITHUB_TOKEN}@github.com/${githubConfig.GITHUB_REPO}.git`,
+          githubConfig.GITHUB_BRANCH
+        ]);
+
+        let pushOutput = '';
+
+        pushProcess.stdout.on('data', (data) => {
+          const output = data.toString();
+          pushOutput += output;
+          
+          // 解析进度信息
+          if (output.includes('Counting objects') || 
+              output.includes('Compressing objects') || 
+              output.includes('Writing objects') || 
+              output.includes('Resolving deltas')) {
+            pushProgress = output.trim();
+          }
+        });
+
+        pushProcess.stderr.on('data', (data) => {
+          pushOutput += data.toString();
+        });
+
+        // 等待 push 完成
+        await new Promise((resolve, reject) => {
+          pushProcess.on('close', (code) => {
+            if (code === 0) {
+              resolve();
+            } else {
+              reject(new Error(`Git push failed with code ${code}`));
+            }
+          });
+        });
+
+        results.push({
+          command: 'git push',
+          success: true,
+          output: pushOutput.trim(),
+          progress: pushProgress
+        });
+
+      } catch (error) {
+        results.push({
+          command: error.cmd || 'git command',
+          success: false,
+          error: error.message
+        });
+        throw error;
+      }
+
+      // 构建详细的状态消息
+      const statusMessage = [
+        `最近提交: ${statusDetails.lastCommit}`,
+        hasChanges ? `更改文件数: ${statusDetails.changedFiles.length}` : '没有文件更改',
+        `推送状态: ${pushProgress || '完成'}`
+      ].join('\n');
+
+      ctx.body = {
+        success: true,
+        message: statusMessage,
+        data: {
+          results,
+          hasChanges,
+          statusDetails,
+          config: {
+            repo: githubConfig.GITHUB_REPO,
+            branch: githubConfig.GITHUB_BRANCH,
+            username: githubConfig.GITHUB_USERNAME
+          }
+        }
+      };
+    } catch (error) {
+      // 构建错误状态消息
+      const errorMessage = [
+        '同步到 GitHub 失败',
+        `错误信息: ${error.message}`,
+        error.cmd ? `失败命令: ${error.cmd}` : '',
+        error.stack ? `错误堆栈: ${error.stack.split('\n')[0]}` : ''
+      ].filter(Boolean).join('\n');
+
+      ctx.body = {
+        success: false,
+        message: errorMessage,
+        error: error.message,
+        stack: error.stack
+      };
+    }
   },
 });
 export default controller;
