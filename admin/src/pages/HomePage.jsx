@@ -61,7 +61,7 @@ const HomePage = () => {
       <h1>Welcome to {formatMessage({ id: getTranslation('plugin.name') })}</h1>
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={() => handleAction('/export-to-hugo/content-type-generator')}>Content-Type生成器</Button>
-        <Button onClick={() => handleAction('/export-to-hugo/hugo-file-generator')}>Hugo文件生成器</Button>
+        <Button onClick={() => handleAction('/export-to-hugo/hugo-file-generator')}>更新网站文件</Button>
         <Button onClick={() => handleAction('/export-to-hugo/sync-to-github')} disabled={isLoading}>
           {isLoading ? '同步中...' : '同步到服务器'}
         </Button>
