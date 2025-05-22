@@ -2,9 +2,11 @@
 
 Provide Strapi v5 to generate your hugo. This plugin is open to everyone and everyone can contribute and modify it. The future of Export To Hugo is decided by each of you.
 
-## Thanks
+## Features
 
-This project thanks Cursor for his help.
+- Automatically generate Strapi Content-Type suitable for Hugo, avoiding manual creation and saving time.
+- Export the data of Strapi v5 into the files required by hugo to facilitate hugo operation.
+- TODO: Upload hugo files to Github
 
 ## Version
 
@@ -126,3 +128,8 @@ yarn install
 yalc update strapi-export-to-hugo
 yarn develop
 ```
+
+
+## Thanks
+
+This project thanks Cursor for his help.
