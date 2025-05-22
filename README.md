@@ -6,7 +6,7 @@ Provide Strapi v5 to generate your hugo. This plugin is open to everyone and eve
 
 - Automatically generate Strapi Content-Type suitable for Hugo, avoiding manual creation and saving time.
 - Export the data of Strapi v5 into the files required by hugo to facilitate hugo operation.
-- TODO: Upload hugo files to Github
+- Automatically git commit and push to Github
 
 ## Version
 
@@ -98,9 +98,25 @@ Then you can complete all your Hugo content, just in Strapi.
 
 ### Generate Gugo Files
 
-On the left side of the menu bar, select export-to-hugo.
+On the left side of the menu bar, select Hugo File Generator.
 
 Click the second button to update the hugo file.
+
+### Sync to Github
+
+You need to add something to your .env file.
+
+```
+#Github
+GITHUB_REPO=YOUR_GITHUB_NAME/YOUR_GITHUB_REPO
+GITHUB_BRANCH=YOUR_REPO_BRANCH
+GITHUB_USERNAME=YOUR_GITHUB_NAME
+GITHUB_TOKEN=YOUR_GITHUB_TOKEN
+```
+
+On the left side of the menu bar, select Sync to GitHub (The third button)
+
+Just wait patiently for your Github to update. It will automatically commit and push operations.
 
 ### Start Hugo
 
@@ -128,7 +144,6 @@ yarn install
 yalc update strapi-export-to-hugo
 yarn develop
 ```
-
 
 ## Thanks
 
