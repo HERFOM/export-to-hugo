@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.2",
   "keywords": [],
   "type": "commonjs",
   "exports": {
@@ -54,7 +54,7 @@
     "displayName": "Export To Hugo",
     "description": ""
   },
-  "name": "export-to-hugo",
+  "name": "strapi-export-to-hugo",
   "description": "Export hugo file using strapi v5",
   "license": "MIT",
   "author": "HERFOM"
