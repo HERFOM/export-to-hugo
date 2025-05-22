@@ -72,11 +72,18 @@ const controller = ({ strapi }) => ({
           displayName: '文章管理',
           kind: 'collectionType',
           attributes: {
+            menu: { type: 'relation', relation: 'oneToOne', target: 'api::menu.menu', required: true },
             title: { type: 'string', required: true },
+            slug: { type: 'uid', targetField: 'title', required: true },
+            weight: { type: 'integer', default: 0 },
+            draft: { type: 'boolean', default: false },
+            date: { type: 'datetime' },
+            images: { type: 'media', multiple: true },
             content: { type: 'richtext' },
-            slug: { type: 'uid', targetField: 'title' },
-            publishedAt: { type: 'datetime' },
-            status: { type: 'enumeration', enum: ['draft', 'published'] }
+            feature: { type: 'json' },
+            keywords: { type: 'json' },
+            description: { type: 'text' },
+            supplier: { type: 'string' }
           }
         },
         {
@@ -85,14 +92,17 @@ const controller = ({ strapi }) => ({
           kind: 'collectionType',
           attributes: {
             name: { type: 'string', required: true },
-            url: { type: 'string' },
-            weight: { type: 'integer', default: 0 },
+            pageref: { type: 'string', required: true },
+            weight: { type: 'integer', default: 0, required: true },
             parent: { type: 'relation', relation: 'oneToOne', target: 'api::menu.menu' },
             page: { 
               type: 'boolean',
-              default: false,
-              required: true
-            }
+              default: false
+            },
+            draft: { type: 'boolean', default: false },
+            date: { type: 'datetime' },
+            keywords: { type: 'json' },
+            params: { type: 'json' }
           }
         },
         {
