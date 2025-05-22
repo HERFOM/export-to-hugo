@@ -14,7 +14,7 @@ Hugo version: Not Sure. (The following tutorial is based on hugo_extended_0.147.
 
 ## Directory
 
-You need to create a project directory. 
+You need to create a project directory.
 
 There are two folders under the project root directory, one is `hugo` and the other is `strapi`. You can't change their names.
 
@@ -99,6 +99,13 @@ Then you can complete all your Hugo content, just in Strapi.
 On the left side of the menu bar, select export-to-hugo.
 
 Click the second button to update the hugo file.
+
+### Start Hugo
+
+```
+cd .\hugo\
+.\hugo.exe server --gc
+```
 
 ## Development
 
