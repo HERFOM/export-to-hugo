@@ -86,7 +86,7 @@ const controller = ({ strapi }) => ({
           attributes: {
             name: { type: 'string', required: true },
             url: { type: 'string' },
-            order: { type: 'integer' },
+            weight: { type: 'integer', default: 0 },
             parent: { type: 'relation', relation: 'oneToOne', target: 'api::menu.menu' },
             page: { 
               type: 'boolean',
