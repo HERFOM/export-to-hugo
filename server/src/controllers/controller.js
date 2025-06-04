@@ -125,7 +125,8 @@ const controller = ({ strapi }) => ({
             baseURL: { type: 'string' },
             languageCode: { type: 'string' },
             title: { type: 'string' },
-            theme: { type: 'string' }
+            theme: { type: 'string' },
+            custom: { type: 'json' }
           }
         }
       ];
@@ -600,8 +601,35 @@ title: "${item.name}"
           if (!['id', 'createdAt', 'updatedAt', 'publishedAt', 'createdBy', 'updatedBy', 'localizations', 'locale', 'localizedFields'].includes(key) && 
               !key.startsWith('_') && 
               attribute.type !== 'relation') {
-            // 获取字段值，如果不存在则使用空字符串作为默认值
-            customConfig[key] = config[key] || '';
+            
+            if (key === 'custom' && config[key]) {
+              try {
+                // 解析 custom 字段的 JSON 字符串
+                const customData = typeof config[key] === 'string' ? JSON.parse(config[key]) : config[key];
+                
+                // 如果 customData 是对象，则合并到 customConfig
+                if (typeof customData === 'object' && customData !== null) {
+                  // 递归合并对象
+                  const mergeObjects = (target, source) => {
+                    for (const key in source) {
+                      if (source[key] instanceof Object && !Array.isArray(source[key])) {
+                        if (!target[key]) target[key] = {};
+                        mergeObjects(target[key], source[key]);
+                      } else {
+                        target[key] = source[key];
+                      }
+                    }
+                  };
+                  
+                  mergeObjects(customConfig, customData);
+                }
+              } catch (error) {
+                console.error('处理 custom 字段时出错:', error);
+              }
+            } else {
+              // 处理其他字段
+              customConfig[key] = config[key] || '';
+            }
           }
         }
 
