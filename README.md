@@ -145,6 +145,13 @@ yalc update strapi-export-to-hugo
 yarn develop
 ```
 
+### Publishing to npm
+
+```
+npm login
+npm publish
+```
+
 ## Thanks
 
 This project thanks Cursor for his help.
