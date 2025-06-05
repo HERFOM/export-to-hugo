@@ -422,7 +422,7 @@ const controller = ({ strapi }) => ({
         
         // 遍历所有字段
         for (const [key, attribute] of Object.entries(attributes)) {
-          if (['id', 'createdAt', 'updatedAt', 'publishedAt', 'createdBy', 'updatedBy', 'localizations', 'locale', 'localizedFields'].includes(key) || 
+          if (['id', 'createdAt', 'updatedAt', 'publishedAt', 'createdBy', 'updatedBy', 'localizations', 'locale', 'localizedFields', 'content'].includes(key) || 
               key.startsWith('_') || 
               attribute.type === 'relation') {
             continue;
