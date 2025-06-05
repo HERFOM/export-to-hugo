@@ -309,6 +309,8 @@ const controller = ({ strapi }) => ({
 
       const projectRoot = getProjectRoot();
       const hugoRootDir = path.join(projectRoot, 'hugo');
+      const strapiUploadsDir = path.join(projectRoot, 'strapi', 'public', 'uploads');
+      const hugoUploadsDir = path.join(hugoRootDir, 'static', 'uploads');
 
       // 清理目录函数
       const cleanDirectory = (dirPath) => {
@@ -355,6 +357,43 @@ const controller = ({ strapi }) => ({
         fs.mkdirSync(hugoConfigDir, { recursive: true });
       }
 
+      // 迁移 uploads 文件夹
+      if (fs.existsSync(strapiUploadsDir)) {
+        // 确保目标目录存在
+        if (!fs.existsSync(hugoUploadsDir)) {
+          fs.mkdirSync(hugoUploadsDir, { recursive: true });
+        }
+
+        // 复制整个 uploads 文件夹
+        const copyDir = (src, dest) => {
+          const entries = fs.readdirSync(src, { withFileTypes: true });
+
+          for (const entry of entries) {
+            const srcPath = path.join(src, entry.name);
+            const destPath = path.join(dest, entry.name);
+
+            if (entry.isDirectory()) {
+              if (!fs.existsSync(destPath)) {
+                fs.mkdirSync(destPath, { recursive: true });
+              }
+              copyDir(srcPath, destPath);
+            } else {
+              fs.copyFileSync(srcPath, destPath);
+            }
+          }
+        };
+
+        try {
+          copyDir(strapiUploadsDir, hugoUploadsDir);
+          results.push('uploads 文件夹迁移成功');
+        } catch (error) {
+          console.error('迁移 uploads 文件夹时出错:', error);
+          results.push(`迁移 uploads 文件夹失败: ${error.message}`);
+        }
+      } else {
+        results.push('strapi uploads 文件夹不存在，跳过迁移');
+      }
+
       // 处理文章
       const articles = await strapi.entityService.findMany('api::article.article', {
         populate: '*',
@@ -396,15 +435,6 @@ const controller = ({ strapi }) => ({
               if (Array.isArray(value)) {
                 frontMatter[key] = value.map(item => {
                   const imageUrl = item.url;
-                  const imagePath = path.join(projectRoot, 'strapi/public', imageUrl);
-                  const targetPath = path.join(uploadsDir, path.basename(imageUrl));
-                  
-                  if (!processedImages.has(imageUrl)) {
-                    if (fs.copyFileSync(imagePath, targetPath)) {
-                      processedImages.add(imageUrl);
-                    }
-                  }
-
                   return {
                     url: `/uploads/${path.basename(imageUrl)}`,
                     alternativeText: item.alternativeText || '',
@@ -414,15 +444,6 @@ const controller = ({ strapi }) => ({
                 });
               } else if (value) {
                 const imageUrl = value.url;
-                const imagePath = path.join(projectRoot, 'strapi/public', imageUrl);
-                const targetPath = path.join(uploadsDir, path.basename(imageUrl));
-                
-                if (!processedImages.has(imageUrl)) {
-                  if (fs.copyFileSync(imagePath, targetPath)) {
-                    processedImages.add(imageUrl);
-                  }
-                }
-
                 frontMatter[key] = {
                   url: `/uploads/${path.basename(imageUrl)}`,
                   alternativeText: value.alternativeText || '',
@@ -469,31 +490,6 @@ const controller = ({ strapi }) => ({
                 // 从URL中提取文件名
                 const fileName = originalImgUrl.split('/').pop();
                 
-                // 构建源文件路径
-                const uploadsPath = originalImgUrl.split('/uploads/')[1];
-                const sourcePath = path.join(projectRoot, 'strapi', 'public', 'uploads', uploadsPath);
-                
-                // 确保目标目录存在
-                if (!fs.existsSync(uploadsDir)) {
-                  fs.mkdirSync(uploadsDir, { recursive: true });
-                }
-                
-                const targetPath = path.join(uploadsDir, fileName);
-
-                // 复制图片文件
-                if (fs.existsSync(sourcePath)) {
-                  try {
-                    fs.copyFileSync(sourcePath, targetPath);
-                    console.log(`已复制图片: ${fileName}`);
-                    console.log(`源路径: ${sourcePath}`);
-                    console.log(`目标路径: ${targetPath}`);
-                  } catch (copyError) {
-                    console.error(`复制图片失败: ${fileName}`, copyError);
-                  }
-                } else {
-                  console.error(`源图片不存在: ${sourcePath}`);
-                }
-
                 // 替换图片URL为相对路径
                 const newMarkdown = `![${altText}](/uploads/${fileName})`;
                 processedContent = processedContent.replace(originalMarkdown, newMarkdown);
@@ -964,4 +960,5 @@ GITHUB_TOKEN=your-github-token
   },
 });
 export default controller;
+
 
