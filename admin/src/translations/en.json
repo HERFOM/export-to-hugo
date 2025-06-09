@@ -1,1 +1,4 @@
-{}
+{
+  "export-to-hugo.plugin.name": "Export to Hugo",
+  "export-to-hugo.plugin.description": "Export your Strapi content to Hugo format"
+}
