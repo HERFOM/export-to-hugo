@@ -78,7 +78,7 @@ const controller = ({ strapi }) => ({
             weight: { type: 'integer', default: 0 },
             draft: { type: 'boolean', default: false },
             date: { type: 'datetime' },
-            images: { type: 'media', multiple: true },
+            images: { type: 'media', multiple: true, allowedTypes: ['images'] },
             content: { type: 'richtext' },
             feature: { type: 'json' },
             keywords: { type: 'json' },
