@@ -737,6 +737,9 @@ title: "${item.name}"
       const path = require('path');
       const fs = require('fs');
 
+      // 保存当前工作目录
+      const originalWorkingDir = process.cwd();
+
       // 获取项目根目录（strapi 的上一级目录）
       const getProjectRoot = () => {
         let currentDir = __dirname;
@@ -918,6 +921,9 @@ GITHUB_TOKEN=your-github-token
           error: error.message
         });
         throw error;
+      } finally {
+        // 恢复原始工作目录
+        process.chdir(originalWorkingDir);
       }
 
       // 构建详细的状态消息
@@ -942,6 +948,11 @@ GITHUB_TOKEN=your-github-token
         }
       };
     } catch (error) {
+      // 确保在发生错误时也恢复工作目录
+      if (originalWorkingDir) {
+        process.chdir(originalWorkingDir);
+      }
+
       // 构建错误状态消息
       const errorMessage = [
         '同步到 GitHub 失败',
