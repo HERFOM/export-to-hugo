@@ -733,12 +733,9 @@ title: "${item.name}"
   },
   async syncToGithub(ctx) {
     try {
-      const { execSync, spawn } = require('child_process');
+      const { spawn } = require('child_process');
       const path = require('path');
       const fs = require('fs');
-
-      // 保存当前工作目录
-      const originalWorkingDir = process.cwd();
 
       // 获取项目根目录（strapi 的上一级目录）
       const getProjectRoot = () => {
@@ -821,116 +818,118 @@ GITHUB_TOKEN=your-github-token
         return;
       }
 
-      // 切换到项目根目录
-      process.chdir(projectRoot);
+      // 创建一个临时脚本来执行 git 操作
+      const tempScriptPath = path.join(projectRoot, 'temp-git-sync.js');
+      const scriptContent = `
+const { execSync } = require('child_process');
+const path = require('path');
 
+// 切换到项目根目录
+process.chdir('${projectRoot.replace(/\\/g, '\\\\')}');
+
+try {
+  // 获取当前分支信息
+  const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+  console.log(JSON.stringify({ type: 'branch', data: currentBranch }));
+
+  // 获取远程仓库信息
+  const remoteUrl = execSync('git remote -v', { encoding: 'utf8' }).trim();
+  console.log(JSON.stringify({ type: 'remote', data: remoteUrl }));
+
+  // 获取最近的提交信息
+  const lastCommit = execSync('git log -1 --pretty=format:"%h - %s (%cr)"', { encoding: 'utf8' }).trim();
+  console.log(JSON.stringify({ type: 'commit', data: lastCommit }));
+
+  // 检查是否有未提交的更改
+  const statusOutput = execSync('git status --porcelain', { encoding: 'utf8' });
+  const hasChanges = statusOutput.trim().length > 0;
+  console.log(JSON.stringify({ type: 'status', data: { hasChanges, files: statusOutput.trim().split('\\n').filter(Boolean) } }));
+
+  if (hasChanges) {
+    // 如果有更改，执行 add 和 commit
+    execSync('git add .');
+    console.log(JSON.stringify({ type: 'add', success: true }));
+
+    execSync(\`git commit -m "自动同步: \${new Date().toLocaleString()}"\`);
+    console.log(JSON.stringify({ type: 'commit', success: true }));
+  }
+
+  // 执行 push
+  execSync(\`git push https://${githubConfig.GITHUB_USERNAME}:${githubConfig.GITHUB_TOKEN}@github.com/${githubConfig.GITHUB_REPO}.git ${githubConfig.GITHUB_BRANCH}\`);
+  console.log(JSON.stringify({ type: 'push', success: true }));
+
+} catch (error) {
+  console.log(JSON.stringify({ type: 'error', error: error.message }));
+  process.exit(1);
+}
+`;
+
+      fs.writeFileSync(tempScriptPath, scriptContent);
+
+      // 使用 spawn 执行临时脚本
       const results = [];
-      let hasChanges = false;
       let statusDetails = {};
-      let pushProgress = '';
+      let hasChanges = false;
 
-      try {
-        // 获取当前分支信息
-        const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
-        statusDetails.currentBranch = currentBranch;
+      const scriptProcess = spawn('node', [tempScriptPath]);
 
-        // 获取远程仓库信息
-        const remoteUrl = execSync('git remote -v', { encoding: 'utf8' }).trim();
-        statusDetails.remoteUrl = remoteUrl;
-
-        // 获取最近的提交信息
-        const lastCommit = execSync('git log -1 --pretty=format:"%h - %s (%cr)"', { encoding: 'utf8' }).trim();
-        statusDetails.lastCommit = lastCommit;
-
-        // 检查是否有未提交的更改
-        const statusOutput = execSync('git status --porcelain', { encoding: 'utf8' });
-        hasChanges = statusOutput.trim().length > 0;
-        statusDetails.changedFiles = statusOutput.trim().split('\n').filter(Boolean);
-
-        if (hasChanges) {
-          // 如果有更改，执行 add 和 commit
-          const addOutput = execSync('git add .', { encoding: 'utf8' });
-          results.push({
-            command: 'git add .',
-            success: true,
-            output: addOutput.trim()
-          });
-
-          const commitOutput = execSync(`git commit -m "自动同步: ${new Date().toLocaleString()}"`, { encoding: 'utf8' });
-          results.push({
-            command: 'git commit',
-            success: true,
-            output: commitOutput.trim()
-          });
-        } else {
-          results.push({
-            command: 'git status',
-            success: true,
-            output: '没有检测到文件更改，跳过提交步骤'
-          });
+      scriptProcess.stdout.on('data', (data) => {
+        const output = data.toString().trim();
+        try {
+          const result = JSON.parse(output);
+          switch (result.type) {
+            case 'branch':
+              statusDetails.currentBranch = result.data;
+              break;
+            case 'remote':
+              statusDetails.remoteUrl = result.data;
+              break;
+            case 'commit':
+              statusDetails.lastCommit = result.data;
+              break;
+            case 'status':
+              hasChanges = result.data.hasChanges;
+              statusDetails.changedFiles = result.data.files;
+              break;
+            case 'add':
+            case 'commit':
+            case 'push':
+              results.push({
+                command: result.type,
+                success: true
+              });
+              break;
+            case 'error':
+              throw new Error(result.error);
+          }
+        } catch (error) {
+          console.error('解析脚本输出失败:', error);
         }
+      });
 
-        // 使用 spawn 来执行 git push，以便获取实时进度
-        const pushProcess = spawn('git', [
-          'push',
-          `https://${githubConfig.GITHUB_USERNAME}:${githubConfig.GITHUB_TOKEN}@github.com/${githubConfig.GITHUB_REPO}.git`,
-          githubConfig.GITHUB_BRANCH
-        ]);
+      scriptProcess.stderr.on('data', (data) => {
+        console.error('脚本错误输出:', data.toString());
+      });
 
-        let pushOutput = '';
-
-        pushProcess.stdout.on('data', (data) => {
-          const output = data.toString();
-          pushOutput += output;
-          
-          // 解析进度信息
-          if (output.includes('Counting objects') || 
-              output.includes('Compressing objects') || 
-              output.includes('Writing objects') || 
-              output.includes('Resolving deltas')) {
-            pushProgress = output.trim();
+      // 等待脚本执行完成
+      await new Promise((resolve, reject) => {
+        scriptProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`脚本执行失败，退出码: ${code}`));
           }
         });
+      });
 
-        pushProcess.stderr.on('data', (data) => {
-          pushOutput += data.toString();
-        });
-
-        // 等待 push 完成
-        await new Promise((resolve, reject) => {
-          pushProcess.on('close', (code) => {
-            if (code === 0) {
-              resolve();
-            } else {
-              reject(new Error(`Git push failed with code ${code}`));
-            }
-          });
-        });
-
-        results.push({
-          command: 'git push',
-          success: true,
-          output: pushOutput.trim(),
-          progress: pushProgress
-        });
-
-      } catch (error) {
-        results.push({
-          command: error.cmd || 'git command',
-          success: false,
-          error: error.message
-        });
-        throw error;
-      } finally {
-        // 恢复原始工作目录
-        process.chdir(originalWorkingDir);
-      }
+      // 删除临时脚本
+      fs.unlinkSync(tempScriptPath);
 
       // 构建详细的状态消息
       const statusMessage = [
         `最近提交: ${statusDetails.lastCommit}`,
         hasChanges ? `更改文件数: ${statusDetails.changedFiles.length}` : '没有文件更改',
-        `推送状态: ${pushProgress || '完成'}`
+        '同步完成'
       ].join('\n');
 
       ctx.body = {
@@ -948,16 +947,10 @@ GITHUB_TOKEN=your-github-token
         }
       };
     } catch (error) {
-      // 确保在发生错误时也恢复工作目录
-      if (originalWorkingDir) {
-        process.chdir(originalWorkingDir);
-      }
-
       // 构建错误状态消息
       const errorMessage = [
         '同步到 GitHub 失败',
         `错误信息: ${error.message}`,
-        error.cmd ? `失败命令: ${error.cmd}` : '',
         error.stack ? `错误堆栈: ${error.stack.split('\n')[0]}` : ''
       ].filter(Boolean).join('\n');
 
